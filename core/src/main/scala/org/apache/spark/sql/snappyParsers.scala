@@ -122,6 +122,10 @@ class SnappyParser(context: SnappyContext)
   final def DURATION = rule { keyword(SnappyParserConsts.DURATION) }
   final def SLIDE = rule { keyword(SnappyParserConsts.SLIDE) }
   final def WINDOW = rule { keyword(SnappyParserConsts.WINDOW) }
+  //cube, rollup
+  final def CUBE = rule { keyword(SnappyParserConsts.CUBE) }
+  final def ROLLUP = rule { keyword(SnappyParserConsts.ROLLUP) }
+
 
   private def toDecimalOrDoubleLiteral(s: String,
       scientific: Boolean): Literal = {
@@ -455,6 +459,16 @@ class SnappyParser(context: SnappyContext)
       (l: LogicalPlan) => Sort(o, global = false, l))
   }
 
+  protected final def cubeRollUpGroupingSet: Rule1[String] = rule {
+    CUBE ~> (() => "CUBE") |
+    ROLLUP ~> (() => "ROLLUP")
+  }
+
+  protected final def groupBy: Rule1[(Seq[Expression], Option[String])] = rule {
+    GROUP ~ BY ~ (expression + (',' ~ ws)) ~
+    (WITH ~ cubeRollUpGroupingSet).? ~> { ((groupingExpr: Seq[Expression], cr: Option[String]) => (groupingExpr, cr)) }
+  }
+
   protected final def relation: Rule1[LogicalPlan] = rule {
     relationFactor ~ (
         (joinType.? ~ JOIN ~ relationFactor ~
@@ -555,22 +569,32 @@ class SnappyParser(context: SnappyContext)
     primary
   }
 
+
   protected def select: Rule1[LogicalPlan] = rule {
     SELECT ~ (DISTINCT ~> trueFn).? ~
     (projection + (',' ~ ws)) ~
     (FROM ~ relations).? ~
     (WHERE ~ expression).? ~
-    (GROUP ~ BY ~ (expression + (',' ~ ws))).? ~
+    groupBy.? ~
     (HAVING ~ expression).? ~
     sortType.? ~
     (LIMIT ~ expression).? ~> { (d: Option[Boolean], p: Seq[Expression],
         f: Option[LogicalPlan], w: Option[Expression],
-        g: Option[Seq[Expression]], h: Option[Expression],
+        g: Option[(Seq[Expression], Option[String])], h: Option[Expression],
         s: Option[LogicalPlan => LogicalPlan], l: Option[Expression]) =>
       val base = f.getOrElse(OneRowRelation)
       val withFilter = w.map(Filter(_, base)).getOrElse(base)
-      val withProjection = g.map(Aggregate(_, p.map(UnresolvedAlias),
-        withFilter)).getOrElse(Project(p.map(UnresolvedAlias), withFilter))
+      val withProjection = g.map(x => {
+        x._2.get match {
+          // group by cols with rollup
+          case "ROLLUP" => Rollup(x._1, withFilter, p.map(UnresolvedAlias))
+          // group by cols with cube
+          case "CUBE" => Cube(x._1, withFilter, p.map(UnresolvedAlias))
+          // just "group by cols"
+          case _ => Aggregate(x._1, p.map(UnresolvedAlias), withFilter)
+        }
+      }
+      ).getOrElse(Project(p.map(UnresolvedAlias), withFilter))
       val withDistinct =
         if (d.isEmpty) withProjection else Distinct(withProjection)
       val withHaving = h.map(Filter(_, withDistinct)).getOrElse(withDistinct)

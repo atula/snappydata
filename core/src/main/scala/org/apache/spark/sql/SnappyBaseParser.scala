@@ -374,4 +374,8 @@ object SnappyParserConsts {
   final val TINYINT = new Keyword("tinyint")
   final val VARBINARY = new Keyword("varbinary")
   final val VARCHAR = new Keyword("varchar")
+
+  final val CUBE = new Keyword("cube")
+  final val ROLLUP = new Keyword("rollup")
+
 }
