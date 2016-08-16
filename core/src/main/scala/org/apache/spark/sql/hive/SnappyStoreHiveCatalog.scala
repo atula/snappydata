@@ -38,13 +38,16 @@ import org.apache.hadoop.util.VersionInfo
 import org.apache.spark.Logging
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.catalyst.analysis.Catalog
+import org.apache.spark.sql.catalyst.analysis.FunctionRegistry.FunctionBuilder
+import org.apache.spark.sql.catalyst.analysis.{Catalog, FunctionRegistry}
+import org.apache.spark.sql.catalyst.expressions.{Expression, ExpressionInfo}
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Subquery}
+import org.apache.spark.sql.catalyst.util.StringKeyHashMap
 import org.apache.spark.sql.collection.Utils
 import org.apache.spark.sql.execution.columnar.impl.IndexColumnFormatRelation
 import org.apache.spark.sql.execution.columnar.{ExternalStoreUtils, JDBCAppendableRelation}
-import org.apache.spark.sql.execution.datasources.{LogicalRelation, ResolvedDataSource}
 import org.apache.spark.sql.execution.datasources.jdbc.DriverRegistry
+import org.apache.spark.sql.execution.datasources.{LogicalRelation, ResolvedDataSource}
 import org.apache.spark.sql.hive.SnappyStoreHiveCatalog._
 import org.apache.spark.sql.hive.client._
 import org.apache.spark.sql.row.JDBCMutableRelation
@@ -809,6 +812,39 @@ object SnappyStoreHiveCatalog {
 
   def closeCurrent(): Unit = {
     Hive.closeCurrent()
+  }
+
+
+}
+
+
+object SnappyFunctionRegistry extends FunctionRegistry {
+
+  private val functionBuilders =
+    StringKeyHashMap[(ExpressionInfo, FunctionBuilder)](caseSensitive = false)
+
+  override def registerFunction(
+      name: String,
+      info: ExpressionInfo,
+      builder: FunctionBuilder): Unit = synchronized {
+    functionBuilders.put(name, (info, builder))
+  }
+
+  override def lookupFunction(name: String, children: Seq[Expression]): Expression = {
+    val func = synchronized {
+      functionBuilders.get(name).map(_._2).getOrElse {
+        throw new AnalysisException(s"undefined function $name")
+      }
+    }
+    func(children)
+  }
+
+  override def listFunction(): Seq[String] = synchronized {
+    functionBuilders.iterator.map(_._1).toList.sorted
+  }
+
+  override def lookupFunction(name: String): Option[ExpressionInfo] = synchronized {
+    functionBuilders.get(name).map(_._1)
   }
 }
 

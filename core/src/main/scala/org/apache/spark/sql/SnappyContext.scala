@@ -35,7 +35,7 @@ import org.apache.spark.api.java.JavaSparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd}
 import org.apache.spark.sql.aqp.{SnappyContextDefaultFunctions, SnappyContextFunctions}
-import org.apache.spark.sql.catalyst.analysis.{Analyzer, EliminateSubQueries}
+import org.apache.spark.sql.catalyst.analysis.{FunctionRegistry, Analyzer, EliminateSubQueries}
 import org.apache.spark.sql.catalyst.expressions.{Alias, Ascending, Cast, Descending, GenericRow, SortDirection}
 import org.apache.spark.sql.catalyst.plans.logical.{InsertIntoTable, LogicalPlan, Project, Union}
 import org.apache.spark.sql.catalyst.rules.{Rule, RuleExecutor}
@@ -47,7 +47,7 @@ import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.execution.datasources.{LogicalRelation, PreInsertCastAndRename, ResolvedDataSource}
 import org.apache.spark.sql.execution.ui.{SQLListener, SnappyStatsTab}
 import org.apache.spark.sql.execution.{CacheManager, ConnectionPool, SparkPlan}
-import org.apache.spark.sql.hive.{QualifiedTableName, SnappyStoreHiveCatalog}
+import org.apache.spark.sql.hive.{SnappyFunctionRegistry, QualifiedTableName, SnappyStoreHiveCatalog}
 import org.apache.spark.sql.row.GemFireXDDialect
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.store.CodeGeneration
@@ -145,6 +145,10 @@ class SnappyContext protected[spark](
 
   @transient
   override lazy val catalog = this.snappyContextFunctions.getSnappyCatalog(this)
+
+  @transient
+  override lazy val functionRegistry: FunctionRegistry = SnappyFunctionRegistry
+
 
 
   def clear(): Unit = {
