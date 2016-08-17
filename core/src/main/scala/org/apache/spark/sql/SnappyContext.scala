@@ -149,6 +149,10 @@ class SnappyContext protected[spark](
   @transient
   override lazy val functionRegistry: FunctionRegistry = SnappyFunctionRegistry
 
+  FunctionRegistry.expressions.foreach { case (name, (info, builder)) => functionRegistry
+      .registerFunction(name, info, builder)
+  }
+
 
 
   def clear(): Unit = {
