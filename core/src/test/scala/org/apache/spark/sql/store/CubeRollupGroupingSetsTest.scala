@@ -23,10 +23,21 @@ class CubeRollupGroupingSetsTest extends SnappyFunSuite with BeforeAndAfterAll {
   }
 
   test("snappy cube_rollup query") {
+    //group by
+    val dfGroupByResult = testData.groupBy("col1", "col2").agg(sum("col2")).orderBy("col1", "col2").collect()
+    val snappyGroupByResult = snc.sql("select col1, col2, sum(col2) from mytable " +
+        "group by col1, col2 order by col1, col2").collect()
+
+    println("DataFrame group by result")
+    dfGroupByResult.foreach(println)
+    println("SnappySQL group by result")
+    snappyGroupByResult.foreach(println)
+    assert(dfGroupByResult.sameElements(snappyGroupByResult))
+
+    //roll up
     val dfRollupResult = testData.rollup("col1", "col2").agg(sum("col3")).orderBy("col1", "col2").collect()
-    val snappyRollupResult = snc.sql("select col1, col2, sum(col3) from mytable group by col1, col2 with rollup order by col1, col2").collect()
-    //    val dfRollupResult = testData.groupBy("col1", "col2").agg(sum("col2")).orderBy("col1", "col2").collect()
-    //    val snappyRollupResult = snc.sql("select col1, col2, sum(col2) from mytable group by col1, col2 order by col1, col2").collect()
+    val snappyRollupResult = snc.sql("select col1, col2, sum(col3) from mytable group by col1, col2 " +
+        "with rollup order by col1, col2").collect()
 
     println("DataFrame rollup result")
     dfRollupResult.foreach(println)
@@ -34,13 +45,25 @@ class CubeRollupGroupingSetsTest extends SnappyFunSuite with BeforeAndAfterAll {
     snappyRollupResult.foreach(println)
     assert(dfRollupResult.sameElements(snappyRollupResult))
 
+    // cube
     val dfCubeResult = testData.cube("col1", "col2").agg(sum("col3")).orderBy("col1", "col2").collect()
-    val snappyCubeResult = snc.sql("select col1, col2, sum(col3) from mytable group by col1, col2 with cube order by col1, col2").collect()
+    val snappyCubeResult = snc.sql("select col1, col2, sum(col3) from mytable group by col1, col2 " +
+        "with cube order by col1, col2").collect()
 
     println("DataFrame cube result")
     dfCubeResult.foreach(println)
     println("SnappySQL cube result")
     snappyCubeResult.foreach(println)
     assert(dfCubeResult.sameElements(snappyCubeResult))
+
+    // grouping sets query equivalent to above cube query
+    val snappyGoupingSetResult = snc.sql("select col1, col2, sum(col3) from mytable group by col1, col2 " +
+        "with grouping sets ((col1, col2), (col1), (col2), ()) order by col1, col2").collect()
+    println("DataFrame cube result")
+    dfCubeResult.foreach(println)
+    println("SnappySQL gouping sets result")
+    snappyGoupingSetResult.foreach(println)
+    assert(dfCubeResult.sameElements(snappyGoupingSetResult))
+
   }
 }

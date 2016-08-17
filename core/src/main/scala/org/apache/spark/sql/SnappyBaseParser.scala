@@ -377,5 +377,7 @@ object SnappyParserConsts {
 
   final val CUBE = new Keyword("cube")
   final val ROLLUP = new Keyword("rollup")
+  final val GROUPING = new Keyword("grouping")
+  final val SETS = new Keyword("sets")
 
 }
